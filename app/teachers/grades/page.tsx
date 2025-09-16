@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "@/app/firebase/firebase";
+import { db, auth } from "@/app/firebase/firebase";
 import {
   collection,
   getDocs,
   getDoc,
   doc,
   updateDoc,
+  query,
+  where,
 } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 interface CourseStudent {
   studentId: string;
@@ -20,6 +23,7 @@ interface CourseStudent {
 interface Course {
   id: string;
   name: string;
+  teacherId: string;
   students: (string | CourseStudent)[];
 }
 
@@ -35,20 +39,38 @@ export default function TeacherPanel() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [teacherId, setTeacherId] = useState("");
 
-  // Load all courses
+  // Detectar docente autenticado
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setTeacherId(user.uid);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Cargar solo cursos del docente autenticado
+  useEffect(() => {
+    if (!teacherId) return;
+
     const fetchCourses = async () => {
-      const snapshot = await getDocs(collection(db, "courses"));
+      const q = query(
+        collection(db, "courses"),
+        where("teacherId", "==", teacherId)
+      );
+      const snapshot = await getDocs(q);
       const data = snapshot.docs.map(
         (d) => ({ id: d.id, ...d.data() } as Course)
       );
       setCourses(data);
     };
-    fetchCourses();
-  }, []);
 
-  // Load students when course changes
+    fetchCourses();
+  }, [teacherId]);
+
+  // Cargar estudiantes cuando se selecciona curso
   useEffect(() => {
     const fetchStudents = async () => {
       if (!selectedCourse) return;
@@ -57,10 +79,8 @@ export default function TeacherPanel() {
       if (!courseSnap.exists()) return;
 
       const courseData = courseSnap.data() as Course;
-
       const studentsArray = courseData.students || [];
 
-      // Normalize to a consistent structure
       const normalized = studentsArray.map((s: any) =>
         typeof s === "string"
           ? { studentId: s, asistencia: 0, tareas: 0, examen: 0 }
@@ -72,14 +92,12 @@ export default function TeacherPanel() {
             }
       );
 
-      // Fetch user names
       const studentDocs = await Promise.all(
         normalized.map((s) => getDoc(doc(db, "users", s.studentId)))
       );
 
       const studentData: StudentRow[] = studentDocs.map((d, i) => {
         const user = d.data() as any;
-        console.log(user);
         return {
           id: normalized[i].studentId,
           name: user?.name || "Sin nombre",
@@ -95,14 +113,12 @@ export default function TeacherPanel() {
     fetchStudents();
   }, [selectedCourse]);
 
-  // Handle inline edit
   const handleChange = (id: string, field: keyof StudentRow, value: number) => {
     setStudents((prev) =>
       prev.map((s) => (s.id === id ? { ...s, [field]: value } : s))
     );
   };
 
-  // Save to Firestore — overwrite the course.students array
   const handleSave = async () => {
     const courseRef = doc(db, "courses", selectedCourse);
 
@@ -113,9 +129,7 @@ export default function TeacherPanel() {
       examen: s.examen,
     }));
 
-    await updateDoc(courseRef, {
-      students: updatedStudents,
-    });
+    await updateDoc(courseRef, { students: updatedStudents });
 
     alert("Cambios guardados correctamente ✅");
   };
@@ -127,7 +141,6 @@ export default function TeacherPanel() {
           📋 Panel de Calificaciones - Docente
         </h1>
 
-        {/* Course Selector */}
         <div className="mb-6">
           <label className="block text-sm font-medium mb-1 text-gray-600">
             Seleccionar Curso
@@ -146,7 +159,6 @@ export default function TeacherPanel() {
           </select>
         </div>
 
-        {/* Students Table */}
         {selectedCourse && (
           <>
             <div className="overflow-x-auto">

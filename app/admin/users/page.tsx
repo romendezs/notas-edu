@@ -48,24 +48,42 @@ export default function ManageUsersPage() {
   };
 
   const updateRole = async (userId: string, newRole: string) => {
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, { role: newRole });
-    await loadUsers();
+    // Ask for confirmation
+    const confirmed = window.confirm("¿Estás seguro de que quieres cambiar el rol de este usuario?");
+    if (!confirmed) return; // Cancel if user selects "No"
+
+    try {
+      const userRef = doc(db, "users", userId);
+      await updateDoc(userRef, { role: newRole });
+
+      // Update local state to reflect change immediately
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u.id === userId ? { ...u, role: newRole } : u
+        )
+      );
+
+      alert("Rol actualizado correctamente");
+    } catch (error) {
+      console.error("Error actualizando rol:", error);
+      alert("Hubo un error al actualizar el rol");
+    }
   };
+
 
   const getRoleBadge = (role: string) => {
     const color =
       role === "admin"
         ? "bg-red-600"
         : role === "teacher"
-        ? "bg-green-600"
-        : "bg-blue-600";
+          ? "bg-green-600"
+          : "bg-blue-600";
     const label =
       role === "admin"
         ? "Admin"
         : role === "teacher"
-        ? "Profesor"
-        : "Estudiante";
+          ? "Profesor"
+          : "Estudiante";
     return (
       <span
         className={`${color} text-white text-sm px-3 py-1 rounded-full`}
@@ -164,6 +182,7 @@ export default function ManageUsersPage() {
                     <option value="teacher">Profesor</option>
                     <option value="student">Estudiante</option>
                   </select>
+
                 </td>
               </tr>
             ))}

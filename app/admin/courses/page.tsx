@@ -177,14 +177,13 @@ export default function AdminCoursesPage() {
             <tr className="border-b">
               <th className="py-2 text-black">Name</th>
               <th className="py-2 text-black">Teacher</th>
-              <th className="py-2 text-black">Created</th>
               <th className="py-2 text-black">Actions</th>
             </tr>
           </thead>
           <tbody>
             {courses.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center py-4 text-gray-500">
+                <td colSpan={3} className="text-center py-4 text-gray-500">
                   No courses found.
                 </td>
               </tr>
@@ -193,11 +192,6 @@ export default function AdminCoursesPage() {
               <tr key={course.id} className="border-b hover:bg-gray-50">
                 <td className="py-2 text-black">{course.name}</td>
                 <td className="py-2 text-black">{course.teacherName}</td>
-                <td className="py-2 text-black">
-                  {course.createdAt
-                    ? new Date(course.createdAt as any).toLocaleDateString()
-                    : ""}
-                </td>
                 <td className="py-2">
                   <button
                     onClick={() => deleteCourse(course.id)}

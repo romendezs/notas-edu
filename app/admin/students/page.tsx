@@ -22,7 +22,13 @@ export default function AssignStudentsPage() {
     const fetchData = async () => {
       const usersSnap = await getDocs(collection(db, "users"));
       const coursesSnap = await getDocs(collection(db, "courses"));
-      setUsers(usersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+      // Only keep users with role "student"
+      const studentUsers = usersSnap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as any) }))
+        .filter((u) => u.role === "student");
+
+      setUsers(studentUsers);
       setCourses(coursesSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
     };
     fetchData();
@@ -35,28 +41,49 @@ export default function AssignStudentsPage() {
     }
     const course = courses.find((c) => c.id === selectedCourse);
     if (course) {
-      const assigned = users.filter((u) => course.students?.includes(u.id));
-      setAssignedStudents(assigned);
+      const assigned = course.students
+        ?.map((s: any) => users.find((u) => u.id === s.studentId))
+        .filter(Boolean);
+      setAssignedStudents(assigned || []);
     }
   }, [selectedCourse, courses, users]);
 
   const handleAssign = async () => {
     if (!selectedStudent || !selectedCourse) return;
+
     const courseRef = doc(db, "courses", selectedCourse);
+
+    const studentObj = {
+      studentId: selectedStudent,
+      asistencia: 0,
+      examen: 0,
+      tareas: 0,
+    };
+
     await updateDoc(courseRef, {
-      students: arrayUnion(selectedStudent),
+      students: arrayUnion(studentObj),
     });
+
     setSelectedStudent("");
-    // refresh list
+
     const updatedCourses = await getDocs(collection(db, "courses"));
     setCourses(updatedCourses.docs.map((d) => ({ id: d.id, ...d.data() })));
   };
 
   const handleRemove = async (studentId: string) => {
+    const course = courses.find((c) => c.id === selectedCourse);
+    if (!course) return;
+
+    const studentObj = course.students.find(
+      (s: any) => s.studentId === studentId
+    );
+    if (!studentObj) return;
+
     const courseRef = doc(db, "courses", selectedCourse);
     await updateDoc(courseRef, {
-      students: arrayRemove(studentId),
+      students: arrayRemove(studentObj),
     });
+
     const updatedCourses = await getDocs(collection(db, "courses"));
     setCourses(updatedCourses.docs.map((d) => ({ id: d.id, ...d.data() })));
   };
@@ -65,7 +92,13 @@ export default function AssignStudentsPage() {
     const userRef = doc(db, "users", userId);
     await updateDoc(userRef, { role: newRole });
     const updatedUsers = await getDocs(collection(db, "users"));
-    setUsers(updatedUsers.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+    // Only keep students in the assigning dropdown
+    const studentUsers = updatedUsers.docs
+      .map((d) => ({ id: d.id, ...(d.data() as any) }))
+      .filter((u) => u.role === "student");
+
+    setUsers(studentUsers);
   };
 
   return (
