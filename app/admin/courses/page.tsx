@@ -70,43 +70,36 @@ export default function AdminCoursesPage() {
     const snapshot = await getDocs(teachersQuery);
     const data = snapshot.docs.map((d) => ({
       uid: d.id,
-      displayName: d.data().displayName as string,
+      displayName: d.data().name as string,
     }));
-    console.log("[fetchTeachers] Teachers fetched:", data);
     setTeachers(data);
+    return data; // return freshly fetched teachers
   };
 
   const fetchCourses = async () => {
-    console.log("[fetchCourses] Fetching courses...");
     const snapshot = await getDocs(coursesRef);
-    console.log("[fetchCourses] Raw snapshot:", snapshot.docs);
     const coursesData = snapshot.docs.map((d) => ({
       id: d.id,
       ...(d.data() as Omit<Course, "id">),
     })) as Course[];
 
-    console.log("[fetchCourses] Raw courses data:", coursesData);
-
-    // attach teacher name by matching with teachers state
-    const usersSnap = await getDocs(collection(db, "users"));
-    const usersMap = new Map(
-      usersSnap.docs.map((d) => [d.id, d.data().displayName])
-    );
+    // use the teachers that were just fetched
+    const teachersData = await fetchTeachers(); // ensure you have fresh data
+    const teacherMap = new Map(teachersData.map((t) => [t.uid, t.displayName]));
 
     const withNames = coursesData.map((c) => ({
       ...c,
-      teacherName: usersMap.get(c.teacherId) || "Unknown",
+      teacherName: teacherMap.get(c.teacherId) || "Unknown",
     }));
 
-    console.log("[fetchCourses] Courses fetched:", withNames);
     setCourses(withNames);
   };
+
 
   const createCourse = async () => {
     if (!name.trim() || !teacherId) return;
 
     setLoading(true);
-    console.log("[createCourse] Creating course:", { name, teacherId });
     await addDoc(coursesRef, {
       name,
       teacherId,
@@ -116,13 +109,11 @@ export default function AdminCoursesPage() {
     setTeacherId("");
     await fetchCourses();
     setLoading(false);
-    console.log("[createCourse] Course created and courses re-fetched.");
   };
 
   const deleteCourse = async (id: string) => {
     await deleteDoc(doc(db, "courses", id));
     setCourses((prev) => prev.filter((c) => c.id !== id));
-    console.log("[deleteCourse] Course deleted:", id);
   };
 
   useEffect(() => {
@@ -135,7 +126,6 @@ export default function AdminCoursesPage() {
         router.push("/");
         return;
       }
-      console.log("[useEffect] User is admin, fetching initial data...");
       await fetchTeachers();
       await fetchCourses();
       setCheckingAuth(false);
